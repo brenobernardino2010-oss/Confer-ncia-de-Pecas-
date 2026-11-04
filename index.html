@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#173b2b">
+<title>Conferência de Peças</title>
+<style>
+:root{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#17231c;background:#f3f6f3}
+*{box-sizing:border-box}body{margin:0;padding:18px;max-width:760px;margin:auto}
+header{background:#173b2b;color:white;padding:20px;border-radius:18px;margin-bottom:16px}
+h1{font-size:24px;margin:0 0 5px}header p{margin:0;color:#dce9df}
+.card{background:white;border:1px solid #dce5de;border-radius:16px;padding:16px;margin:12px 0;box-shadow:0 2px 8px #102b1710}
+label{display:block;font-weight:650;margin:10px 0 6px}
+input{width:100%;font-size:19px;padding:13px;border:1px solid #bdcbbf;border-radius:10px}
+button{border:0;border-radius:11px;padding:13px 15px;font-size:16px;font-weight:650;cursor:pointer}
+.primary{background:#176b42;color:white;width:100%;margin-top:12px}
+.voice{background:#e4f2e9;color:#145a36;width:100%;margin-top:10px}
+.secondary{background:#e9eeea;color:#20372a}
+.danger{background:#fae8e6;color:#8b241b}
+.row{display:flex;gap:9px;flex-wrap:wrap;margin-top:10px}.row button{flex:1}
+.hint,.status{font-size:14px;color:#526258;line-height:1.45}
+.status{min-height:22px;margin-top:8px}
+table{width:100%;border-collapse:collapse;margin-top:8px}
+th,td{text-align:left;padding:11px 6px;border-bottom:1px solid #e4ebe5}
+th{font-size:13px;color:#526258}
+td:last-child,th:last-child{text-align:right}
+.pill{font-size:12px;background:#fff1cf;color:#6c4b00;padding:3px 7px;border-radius:20px}
+.empty{text-align:center;color:#66756a;padding:20px}
+footer{font-size:12px;color:#647268;padding:8px 2px}
+</style>
+</head>
+<body>
+<header><h1>Conferência de Peças</h1><p>Registre códigos e quantidades falando ou digitando.</p></header>
+<section class="card">
+<h2 style="margin:0 0 4px">Novo registro</h2>
+<p class="hint">Diga, por exemplo: “Peça 262, duas unidades”. O aplicativo vai preencher os campos para você conferir antes de salvar.</p>
+<button class="voice" id="speak">🎙️ Ativar microfone e falar</button>
+<div class="status" id="status" aria-live="polite">Toque no botão e autorize o microfone, se o navegador perguntar.</div>
+<label for="code">Código da peça</label><input id="code" inputmode="numeric" placeholder="Ex.: 262">
+<label for="qty">Quantidade</label><input id="qty" type="number" min="1" step="1" value="1">
+<div class="row"><button class="primary" id="save">Salvar na lista</button><button class="secondary" id="clear">Limpar campos</button></div>
+</section>
+<section class="card">
+<h2 style="margin:0">Lista de conferência <span id="count" class="pill">0 itens</span></h2>
+<p class="hint">Cada lançamento fica separado, mesmo que o código se repita. Você pode excluir um lançamento se errar.</p>
+<div id="list"><div class="empty">Sua lista ainda está vazia.</div></div>
+<div class="row"><button class="secondary" id="csv">⬇ Exportar CSV / Excel</button><button class="secondary" id="copy">Copiar lista</button></div>
+<div class="row"><button class="danger" id="erase">Apagar todos os registros</button></div>
+<div class="status" id="exportStatus"></div>
+</section>
+<footer>Os registros ficam salvos neste navegador e neste aparelho. Exporte uma cópia ao terminar. O reconhecimento de voz do navegador pode exigir internet e uma página segura (HTTPS); se não funcionar, você ainda pode digitar os campos.</footer>
+<script>
+const $=id=>document.getElementById(id);
+let items=[];try{items=JSON.parse(localStorage.getItem('conferencia_pecas_v1')||'[]')}catch(e){}
+function persist(){localStorage.setItem('conferencia_pecas_v1',JSON.stringify(items));render()}
+function render(){
+ $('count').textContent=`${items.length} ${items.length===1?'item':'itens'}`;
+ if(!items.length){$('list').innerHTML='<div class="empty">Sua lista ainda está vazia.</div>';return}
+ $('list').innerHTML=`<table><thead><tr><th>Código</th><th>Quantidade</th><th></th></tr></thead><tbody>${items.map((x,i)=>`<tr><td>${esc(x.code)}</td><td>${x.qty}</td><td><button class="danger" data-del="${i}">✕</button></td></tr>`).join('')}</tbody></table>`;
+ document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{items.splice(+b.dataset.del,1);persist()});
+}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+$('save').onclick=()=>{let code=$('code').value.trim(),qty=Number($('qty').value);if(!code){$('status').textContent='Informe o código da peça.';return}if(!Number.isInteger(qty)||qty<1){$('status').textContent='Informe uma quantidade inteira maior que zero.';return}items.push({code,qty});persist();$('status').textContent=`Peça ${code} salva: ${qty} unidade(s).`;$('code').value='';$('qty').value='1';$('code').focus()};
+$('clear').onclick=()=>{$('code').value='';$('qty').value='1';$('status').textContent='Campos limpos.'};
+$('erase').onclick=()=>{if(confirm('Apagar todos os registros desta lista?')){items=[];persist();$('exportStatus').textContent='Lista apagada.'}};
+$('csv').onclick=()=>{if(!items.length){$('exportStatus').textContent='A lista está vazia.';return}let csv='\uFEFFCódigo;Quantidade\n'+items.map(x=>`${String(x.code).replace(/;/g,'')};${x.qty}`).join('\n');let url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));let a=document.createElement('a');a.href=url;a.download='conferencia_de_pecas.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);$('exportStatus').textContent='CSV exportado. Abra no Excel.'};
+$('copy').onclick=async()=>{try{await navigator.clipboard.writeText('Código\tQuantidade\n'+items.map(x=>`${x.code}\t${x.qty}`).join('\n'));$('exportStatus').textContent='Lista copiada.'}catch(e){$('exportStatus').textContent='Não foi possível copiar. Use Exportar CSV.'}};
+function digitWords(s){const map={zero:'0',um:'1',uma:'1',dois:'2',duas:'2',tres:'3',quatro:'4',cinco:'5',seis:'6',sete:'7',oito:'8',nove:'9'};return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').split(/\s+/).map(w=>map[w]??w).join('')}
+function parseSpeech(raw){
+ let s=raw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[.,]/g,' ').replace(/\s+/g,' ').trim();
+ s=s.replace(/^.*?\bpeca\b\s*/,'').replace(/\b(unidades?|unid)\b/g,'').trim();
+ // Use the final spoken number as quantity; all preceding number words form the part code.
+ let p=s.split(' ').filter(Boolean);if(p.length<2)return null;
+ let q=p.pop();let qty=Number(digitWords(q));let code=digitWords(p.join(' ')).replace(/\D/g,'');
+ if(code&&Number.isInteger(qty)&&qty>0)return {code,qty};
+ return null;
+}
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+let rec=null;
+async function startVoice(){
+ $('status').textContent='Verificando a permissão do microfone…';
+ if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+  $('status').textContent='Este modo de abertura não libera o microfone. Abra o protótipo em uma página HTTPS no Chrome, ou use a digitação por enquanto.';return;
+ }
+ try{
+  const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+  stream.getTracks().forEach(t=>t.stop());
+ }catch(e){
+  $('status').textContent=e.name==='NotAllowedError'?'Permissão negada. No Chrome, toque no ícone ao lado do endereço > Permissões do site > Microfone > Permitir.':`Não consegui acessar o microfone (${e.name}). Confira as permissões do Chrome.`;return;
+ }
+ if(!SR){$('status').textContent='O microfone foi autorizado, mas este navegador não oferece reconhecimento de fala. Tente o Chrome atualizado ou digite os campos.';return}
+ if(!rec){rec=new SR();rec.lang='pt-BR';rec.interimResults=false;rec.maxAlternatives=3;
+  rec.onresult=e=>{let best=e.results[0][0].transcript;let parsed=parseSpeech(best);if(parsed){$('code').value=parsed.code;$('qty').value=parsed.qty;$('status').textContent=`Entendi: “${best}”. Confira os dois campos e toque em Salvar.`}else{$('status').textContent=`Ouvi “${best}”, mas não consegui separar código e quantidade. Tente falar “peça 262, duas unidades” ou corrija digitando.`}};
+  rec.onerror=e=>{$('status').textContent=`O navegador não conseguiu reconhecer a fala (${e.error}). Confira a internet e a permissão do microfone.`};
+  rec.onend=()=>{$('speak').disabled=false};
+ }
+ try{$('speak').disabled=true;$('status').textContent='Microfone liberado. Pode falar agora…';rec.start()}catch(e){$('speak').disabled=false;$('status').textContent='Não consegui iniciar a gravação. Aguarde alguns segundos e tente novamente.'}
+}
+$('speak').onclick=startVoice;
+render();
+</script>
+</body></html>
